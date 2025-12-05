@@ -1,0 +1,222 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda Public template v3.0 17/03/2025
+
+Parameters:
+  Versao:
+    Type: String
+    Default: 0
+  ApiVersion:
+    Type: String
+    Default: 1.0
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - hml
+      - prd
+  FunctionLambdaName:
+    Description: Lambda Name
+    Type: String
+    Default: lambda-go-identity
+  ApplicationName:
+    Type: String
+    Default: lambda-go-identity
+  ComponentName:
+    Type: String
+    Default: lambda
+  PciClassificationName:
+    Type: String
+    Default: non-pci
+    AllowedValues:
+      - pci
+      - pci-connected
+      - non-pci
+    
+  HandlerName:
+    Description: Handler Name (go=main, python=index.handler)
+    Type: String
+    Default: main
+  Timeout:
+    Type: Number
+    Description: Timeout in seconds
+    Default: 10
+  S3BucketParam:
+    Type: String 
+    Default: 908671954593-gitaction-us-east-2-eliezer
+  S3KeyParam:
+    Type: String 
+    Default: lambda-go-identity/main.zip
+
+  ManagedPolicyParameterOne:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+  ManagedPolicyParameterTwo:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: arn:aws:iam::aws:policy/AmazonS3FullAccess
+  ManagedPolicyParameterThree:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+  ManagedPolicyParameterFour:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: "arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
+    
+  CrlBucketNameKey:
+    Description: Crl Bucket Name
+    Type: String 
+    Default: "eliezerraj-992382474575-mtls-truststore"
+  Runtime:
+    Description: Runtime Environment name e.g nodejs, provided.al2, python3.9
+    Type: String
+    ConstraintDescription: must be a valid environment provided.al2)
+    Default: provided.al2
+  Layer01Arn:
+    Description: Inform the arn layer 01 
+    Type: String
+    Default: arn:aws:lambda:us-east-2:184161586896:layer:opentelemetry-collector-amd64-0_18_0:1 #https://github.com/open-telemetry/opentelemetry-lambda/releases
+  Layer02Arn:
+    Description: Inform the arn layer 02
+    Type: String
+    Default: arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:60 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versionsx86-64.html
+
+Conditions:
+  IsManagedPolicyParameterOne:    !Not [!Equals [ !Ref ManagedPolicyParameterOne, "" ]]
+  IsManagedPolicyParameterTwo:    !Not [!Equals [ !Ref ManagedPolicyParameterTwo, "" ]]
+  IsManagedPolicyParameterThree:  !Not [!Equals [ !Ref ManagedPolicyParameterThree, "" ]]
+  IsManagedPolicyParameterFour:   !Not [!Equals [ !Ref ManagedPolicyParameterFour, "" ]]
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - !If [ IsManagedPolicyParameterOne, !Ref ManagedPolicyParameterOne, !Ref 'AWS::NoValue' ]
+        - !If [ IsManagedPolicyParameterTwo, !Ref ManagedPolicyParameterTwo, !Ref 'AWS::NoValue' ]
+        - !If [ IsManagedPolicyParameterThree, !Ref ManagedPolicyParameterThree, !Ref 'AWS::NoValue' ]
+        - !If [ IsManagedPolicyParameterFour, !Ref ManagedPolicyParameterFour, !Ref 'AWS::NoValue' ]
+      Policies:
+      - PolicyName: lambda_policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - "s3:*"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - "logs:CreateLogGroup"
+            - "logs:CreateLogStream"
+            - "logs:PutLogEvents"
+            - "ssm:GetParameter"
+            - "xray:PutTraceSegments"
+            - "xray:PutTelemetryRecords"
+            Resource: "*"
+
+  LambdaFunction: 
+    Type: "AWS::Lambda::Function"
+    Properties: 
+      FunctionName: !Ref FunctionLambdaName
+      Handler: !Ref HandlerName
+      Timeout: !Ref Timeout
+      Runtime: !Ref Runtime
+      TracingConfig:
+        Mode: Active   
+      Layers:
+        - !Ref Layer01Arn
+        - !Ref Layer02Arn    
+      Environment:
+        Variables:
+          VERSION: !Ref ApiVersion
+          ACCOUNT: 'aws:908671954593'
+          APP_NAME: !Ref FunctionLambdaName
+          END: !Ref Env
+
+          AUTHENTICATION_MODEL: 'RSA'
+          REGION: 'us-east-2'
+          SECRET_NAME: 'SECRET-12345'
+          DYNAMO_TABLE_NAME: 'user_login_2'
+
+          RSA_BUCKET_NAME_KEY: 'docktech-eliezer-908671954593-truststore-mtls'
+          RSA_FILE_PATH: /
+          RSA_PRIV_FILE_KEY: server-private.key
+          RSA_PUB_FILE_KEY: server-public.key
+          CRL_FILE_KEY: crl-ca.crl
+
+          LOG_LEVEL: 'info'
+          OTEL_EXPORTER_OTLP_ENDPOINT: 'localhost:4317'
+
+          OTEL_METRICS: 'true'
+          OTEL_STDOUT_TRACER: 'false'
+          OTEL_TRACES: 'true'
+
+          OTEL_LOGS: 'false'
+          OTEL_STDOUT_LOG_GROUP: 'false'
+          LOG_GROUP: '/lambda-go-identidy.log'
+  
+          AWS_LAMBDA_EXEC_WRAPPER: '/opt/otel-handler'
+          OTEL_TRACES_SAMPLER: 'always_on'
+          OTEL_SERVICE_NAME: !Ref FunctionLambdaName
+      Role: 
+        Fn::GetAtt: 
+          - "LambdaExecutionRole"
+          - "Arn"
+      Code: 
+        S3Bucket: !Ref S3BucketParam
+        S3Key: !Ref S3KeyParam
+      Tags:
+      - Key: env
+        Value: !Ref Env
+      - Key: stack
+        Value: !Sub ${AWS::StackName}
+      - Key: name
+        Value: !Ref FunctionLambdaName
+      - Key: resource
+        Value: lambda
+      - Key: application
+        Value: !Ref ApplicationName
+      - Key: component
+        Value: !Ref ComponentName
+      - Key: pci_classification
+        Value: !Ref PciClassificationName
+
+  LambdaFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: LambdaFunction
+    Properties:
+      RetentionInDays: 7
+      LogGroupName: !Join
+        - ""
+        - -  "/aws/lambda/"
+          - !Ref LambdaFunction
+
+  VersionLambda:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Description: version live
+
+  AliasLambda:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      FunctionVersion: !GetAtt VersionLambda.Version
+      Name: live
+
+Outputs:
+  LambdaFunctionARN:
+    Value: !GetAtt 'LambdaFunction.Arn'

@@ -1,0 +1,392 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform:
+- AWS::Serverless-2016-10-31
+Description: Apigateway Public Lambda Integration v3.1 - 05/12/2025
+
+Parameters:
+  Versao:
+    Type: String
+    Default: 3.0
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - hml
+      - prd
+  LambdaFunctionArn:
+    Type: String
+    Description: Lambda ARN for invocation
+    Default: arn:aws:lambda:us-east-2:908671954593:function:lambda-go-identity
+  PublicApiLogFormat:
+    Type: String
+    Default: '{"apiId": "$context.apiId", "requestId": "$context.requestId",
+      "sourceIP": "$context.identity.sourceIp", "userAgent": "$context.identity.userAgent",
+      "WAFresponse": "$context.wafResponseCode", "httpMethod": "$context.httpMethod",
+      "path": "$context.path", "respTime":"$context.integrationLatency", "responseCode":
+      "$context.status", "integRespCode": "$context.integrationStatus", "reqTime":"$context.requestTimeEpoch",
+      "resourcePath": "$context.resourcePath", "appClient": "$context.authorizer.principalId", "jwtId": "$context.authorizer.jwt_id",
+      "authLatency": "$context.authorizer.latency","x_amzn_trace_id": "$context.xrayTraceId"}'
+  ApiPublicName:
+    Type: String
+    Default: lambda-go-identity
+  ApiPublicLogGroupName:
+    Type: String
+    Description: Name of API Gateway Log Group
+    Default: /dock/apigateway/lambda-go-identity
+  ApiGatewayDomainName:
+    Type: String
+    Default: lambda-go-identity.architecture.caradhras.io
+  AuthorizerUri:
+    Type: String
+    Default: arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:908671954593:function:go-oauth-apigw-authorizer-lambda/invocations
+  AuthorizerARN:
+    Type: String
+    Default: arn:aws:lambda:us-east-2:908671954593:function:go-oauth-apigw-authorizer-lambda
+  EdgeCertificateArn:
+    Type: String
+    Default: arn:aws:acm:us-east-1:908671954593:certificate/6dfea057-7ca7-41b9-95a0-b63aaa6640a2 
+  RegionalCertificateArn:
+    Type: String
+    Default: arn:aws:acm:us-east-2:908671954593:certificate/a784955c-9a8b-4403-bea2-527035ab3782
+  WafaclArn:
+    Type: String
+    Description: Association WAF in API ApiGateway
+    Default: arn:aws:wafv2:us-east-2:908671954593:regional/webacl/FMManagedWebACLV2-acl-basic-1663942040591/0c9a45b3-1c87-4cd9-86a9-e50fb1914e53
+  Application:
+    Type: String
+    Default: lambda-go-identity
+  Owner:
+    Type: String
+    Default: architecture
+  Service:
+    Type: String
+    Default: lambda-go-identity
+  Squad:
+    Type: String
+    Default: architecture
+
+Resources:
+  ApiPublicLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName:
+        Ref: ApiPublicLogGroupName
+      RetentionInDays: 7
+      Tags:
+      - Key: application
+        Value:
+          Ref: Application
+      - Key: env
+        Value:
+          Ref: Env
+      - Key: owner
+        Value:
+          Ref: Owner
+      - Key: resource
+        Value: log-group
+      - Key: service
+        Value:
+          Ref: Service
+      - Key: squad
+        Value:
+          Ref: Squad
+      - Key: stack
+        Value:
+          Fn::Sub: ${AWS::StackName}
+  
+  ApiPublicGateway:
+    Type: AWS::Serverless::Api
+    Properties:
+      AccessLogSetting:
+        DestinationArn:
+          Fn::GetAtt:
+          - ApiPublicLogGroup
+          - Arn
+        Format:
+          Ref: PublicApiLogFormat
+      AlwaysDeploy: true
+      DefinitionBody:
+        swagger: '2.0'
+        info:
+          title: lambda-go-identity
+        tags:
+        - name: lambda-go-identity
+          description: lambda-go-identity
+        schemes:
+        - https
+        paths:
+          /info:
+            get:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST # This is mandatory for lambdas
+                uri: 
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
+                passthroughBehavior: WHEN_NO_TEMPLATES
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+                  integration.request.header.X-Request-ID: context.requestId
+                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.X-Forwarded-For: context.identity.sourceIp
+                  integration.request.header.jwt-id: context.authorizer.jwt_id         
+          /oauth_credential:
+            post:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST # This is mandatory for lambdas
+                uri: 
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
+                passthroughBehavior: when_no_match
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+                  integration.request.header.X-Request-ID: context.requestId
+                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.X-Forwarded-For: context.identity.sourceIp
+                  integration.request.header.jwt-id: context.authorizer.jwt_id        
+          /refreshToken:
+            post:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST # This is mandatory for lambdas
+                uri: 
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
+                passthroughBehavior: when_no_match
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+                  integration.request.header.X-Request-ID: context.requestId
+                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.X-Forwarded-For: context.identity.sourceIp
+                  integration.request.header.jwt-id: context.authorizer.jwt_id        
+          /tokenValidation:
+            post:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST # This is mandatory for lambdas
+                uri: 
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
+                passthroughBehavior: when_no_match
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+                  integration.request.header.X-Request-ID: context.requestId
+                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.X-Forwarded-For: context.identity.sourceIp
+                  integration.request.header.jwt-id: context.authorizer.jwt_id  
+          /signIn:
+            post:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST # This is mandatory for lambdas
+                uri: 
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
+                passthroughBehavior: when_no_match
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+                  integration.request.header.X-Request-ID: context.requestId
+                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.X-Forwarded-For: context.identity.sourceIp
+                  integration.request.header.jwt-id: context.authorizer.jwt_id  
+          /addScope:
+            post:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST # This is mandatory for lambdas
+                uri: 
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
+                passthroughBehavior: when_no_match
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+                  integration.request.header.X-Request-ID: context.requestId
+                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.X-Forwarded-For: context.identity.sourceIp
+                  integration.request.header.jwt-id: context.authorizer.jwt_id  
+          /credential/{id}:
+            get:
+              produces:
+              - application/json
+              responses:
+                '200':
+                  description: 200 response
+                  schema:
+                    $ref: '#/definitions/Empty'
+              x-amazon-apigateway-integration:
+                type: aws_proxy
+                httpMethod: POST # This is mandatory for lambdas
+                uri: 
+                  Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
+                passthroughBehavior: when_no_match
+                requestParameters:
+                  integration.request.path.proxy: method.request.path.proxy
+                  integration.request.header.X-Request-ID: context.requestId
+                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.X-Forwarded-For: context.identity.sourceIp
+                  integration.request.header.jwt-id: context.authorizer.jwt_id                         
+        x-amazon-apigateway-api-key-source: AUTHORIZER
+        securityDefinitions:
+          authorizer:
+            type: apiKey
+            name: Unused
+            in: header
+            x-amazon-apigateway-authtype: custom
+            x-amazon-apigateway-authorizer:
+              authorizerUri: !Ref AuthorizerUri
+              authorizerResultTtlInSeconds: 600
+              identitySource: method.request.header.Authorization, context.path, context.httpMethod, context.identity.sourceIp
+              type: request
+        definitions:
+          Empty:
+            type: object
+            title: Empty Schema
+        x-amazon-apigateway-gateway-responses:
+          UNAUTHORIZED:
+            statusCode: 401
+            responseTemplates:
+              application/json: '{"error": { "id": "$context.requestId", "description":
+                "Unauthorized", "code": "401"}}'
+          ACCESS_DENIED:
+            statusCode: 403
+            responseTemplates:
+              application/json: '{"error": { "id": "$context.requestId", "description":
+                "Forbidden", "code": "403"}}'
+          DEFAULT_4XX:
+            statusCode: 404
+            responseTemplates:
+              application/json: '{"error": { "id": "$context.requestId", "description":
+                "Resource not found", "code": "404"}}'
+          DEFAULT_5XX:
+            statusCode: 500
+            responseTemplates:
+              application/json: '{"error": { "id": "$context.requestId", "description":
+                "Internal Server Error", "code": "500"}}'
+          WAF_FILTERED:
+            statusCode: 403
+            responseTemplates:
+              application/json: '{"error": { "id": "$context.requestId", "description":
+                "Forbidden", "code": "403"}}'
+          THROTTLED:
+            statusCode: 429
+            responseTemplates:
+              application/json: '{"error": { "id": "$context.requestId", "description":
+                "Too many requests", "code": "429"}}'
+      Description: API Pulic Lambda Integration
+      DisableExecuteApiEndpoint: true
+      EndpointConfiguration:
+        Type: EDGE
+      MethodSettings:
+      - ResourcePath: /*
+        HttpMethod: '*'
+        MetricsEnabled: true
+        DataTraceEnabled: true
+        LoggingLevel: INFO
+      StageName: live
+      Tags:
+        application:
+          Ref: Application
+        env:
+          Ref: Env
+        owner:
+          Ref: Owner
+        resource: api-gateway
+        service:
+          Ref: Service
+        squad:
+          Ref: Squad
+        stack:
+          Fn::Sub: ${AWS::StackName}
+      TracingEnabled: true # xray enabled
+      Variables:
+        apiName:
+          Ref: ApiPublicName
+
+  ApiCustomDomainName:
+    Type: AWS::ApiGateway::DomainName
+    Properties:
+      DomainName:
+        Ref: ApiGatewayDomainName
+      EndpointConfiguration:
+        Types:
+        - EDGE
+      SecurityPolicy: TLS_1_2
+      CertificateArn:
+        Ref: EdgeCertificateArn
+
+  ApiPublicBaseMapping:
+    Type: AWS::ApiGateway::BasePathMapping
+    Properties:
+      DomainName:
+        Ref: ApiGatewayDomainName
+      RestApiId:
+        Ref: ApiPublicGateway
+      Stage:
+        Ref: ApiPublicGateway.Stage
+
+  ApiInvokePermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref AuthorizerARN
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+  ApiInvokeIntegrationPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      FunctionName: !Ref LambdaFunctionArn
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+
+  WafAssociation:
+    Type: AWS::WAFv2::WebACLAssociation
+    Properties:
+      ResourceArn:
+        Fn::Sub: arn:aws:apigateway:${AWS::Region}::/restapis/${ApiPublicGateway}/stages/${ApiPublicGateway.Stage}
+      WebACLArn:
+        Ref: WafaclArn
+
+Outputs:
+  ApiPublicGateway:
+    Value:
+      Ref: ApiPublicGateway
+    Export:
+      Name: ApiPublicGateway

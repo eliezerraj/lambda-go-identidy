@@ -1,0 +1,181 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Lambda Public template
+
+Parameters:
+  Versao:
+    Type: String
+    Default: 0
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - hml
+      - prd
+  FunctionLambdaName:
+    Description: Lambda Name
+    Type: String
+    Default: go-oauth-apigw-authorizer-lambda
+  ApplicationName:
+    Type: String
+    Default: go-oauth-apigw-authorizer-lambda
+  ComponentName:
+    Type: String
+    Default: lambda
+  PciClassificationName:
+    Type: String
+    Default: non-pci
+    AllowedValues:
+      - pci
+      - pci-connected
+      - non-pci
+    
+  HandlerName:
+    Description: Handler Name (go=main, python=index.handler)
+    Type: String
+    Default: main
+  Timeout:
+    Type: Number
+    Description: Timeout in seconds
+    Default: 10
+  S3BucketParam:
+    Type: String 
+    Default: codepipeline-us-east-2-237656914886
+  S3KeyParam:
+    Type: String 
+    Default: go-oauth-apigw-authorizer-lambda/main.zip
+
+  ManagedPolicyParameterOne:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess
+  ManagedPolicyParameterTwo:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: arn:aws:iam::aws:policy/AmazonS3FullAccess
+  ManagedPolicyParameterThree:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: "arn:aws:iam::aws:policy/SecretsManagerReadWrite"
+  CrlBucketNameKey:
+    Description: Crl Bucket Name
+    Type: String 
+    Default: "eliezerraj-992382474575-mtls-truststore"
+  Runtime:
+    Description: Runtime Environment name e.g nodejs, provided.al2, python3.9
+    Type: String
+    ConstraintDescription: must be a valid environment provided.al2)
+    Default: provided.al2
+
+Conditions:
+  IsManagedPolicyParameterOne:    !Not [!Equals [ !Ref ManagedPolicyParameterOne, "" ]]
+  IsManagedPolicyParameterTwo:    !Not [!Equals [ !Ref ManagedPolicyParameterTwo, "" ]]
+  IsManagedPolicyParameterThree:  !Not [!Equals [ !Ref ManagedPolicyParameterThree, "" ]]
+
+Resources:
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+      ManagedPolicyArns:
+        - !If [ IsManagedPolicyParameterOne, !Ref ManagedPolicyParameterOne, !Ref 'AWS::NoValue' ]
+        - !If [ IsManagedPolicyParameterTwo, !Ref ManagedPolicyParameterTwo, !Ref 'AWS::NoValue' ]
+        - !If [ IsManagedPolicyParameterThree, !Ref ManagedPolicyParameterThree, !Ref 'AWS::NoValue' ]
+      Policies:
+      - PolicyName: lambda_policy
+        PolicyDocument:
+          Version: '2012-10-17'
+          Statement:
+          - Effect: Allow
+            Action:
+            - "s3:*"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - "logs:CreateLogGroup"
+            - "logs:CreateLogStream"
+            - "logs:PutLogEvents"
+            - "logs:PutLogEvents"
+            - "ssm:GetParameter"
+            Resource: "*"
+
+  LambdaFunction: 
+    Type: "AWS::Lambda::Function"
+    Properties: 
+      FunctionName: !Ref FunctionLambdaName
+      Handler: !Ref HandlerName
+      Timeout: !Ref Timeout
+      Runtime: !Ref Runtime
+      Environment:
+        Variables:
+          POD_NAME: !Ref FunctionLambdaName
+          OTEL_EXPORTER_OTLP_ENDPOINT: 'localhost:4317'
+          REGION: 'us-east-2'
+          RSA_BUCKET_NAME_KEY: 'eliezerraj-908671954593-mtls-truststore'
+          RSA_FILE_PATH: /
+          RSA_PRIV_FILE_KEY: server-private.key
+          RSA_PUB_FILE_KEY: server-public.key
+          CRL_FILE_KEY: crl-ca.crl
+          SECRET_NAME: 'key-jwt-auth'
+          DYNAMO_TABLE_NAME: 'user_login_2'
+          API_VERSION: '3.0'
+          MODEL_SIGN: "RSA"
+          END: !Ref Env
+      Role: 
+        Fn::GetAtt: 
+          - "LambdaExecutionRole"
+          - "Arn"
+      Code: 
+        S3Bucket: !Ref S3BucketParam
+        S3Key: !Ref S3KeyParam
+      Tags:
+      - Key: env
+        Value: !Ref Env
+      - Key: stack
+        Value: !Sub ${AWS::StackName}
+      - Key: name
+        Value: !Ref FunctionLambdaName
+      - Key: resource
+        Value: lambda
+      - Key: application
+        Value: !Ref ApplicationName
+      - Key: component
+        Value: !Ref ComponentName
+      - Key: pci_classification
+        Value: !Ref PciClassificationName
+
+  LambdaFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    DependsOn: LambdaFunction
+    Properties:
+      RetentionInDays: 7
+      LogGroupName: !Join
+        - ""
+        - -  "/aws/lambda/"
+          - !Ref LambdaFunction
+
+  VersionLambda:
+    Type: AWS::Lambda::Version
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      Description: version live
+
+  AliasLambda:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref LambdaFunction
+      FunctionVersion: !GetAtt VersionLambda.Version
+      Name: live
+
+Outputs:
+  LambdaFunctionARN:
+    Value: !GetAtt 'LambdaFunction.Arn'

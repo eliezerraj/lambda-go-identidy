@@ -1,0 +1,33 @@
+
+[req]
+default_md = sha256
+prompt = no
+req_extensions = v3_ext
+distinguished_name = req_distinguished_name
+
+[req_distinguished_name]
+CN = go-auth0.architecture.caradhras.io
+O = dock
+OU = architecture
+C = BR
+ST = SP
+L = SP
+
+[v3_ext]
+keyUsage = critical,digitalSignature,keyEncipherment
+extendedKeyUsage = critical,serverAuth,clientAuth
+subjectAltName = @alt_names
+
+[crl_ext]
+# CRL extensions.
+# Only issuerAltName and authorityKeyIdentifier make any sense in a CRL.
+authorityKeyIdentifier=keyid:always
+
+[server_cert]
+crlDistributionPoints = URI:http://example.com/intermediate.crl
+
+[alt_names]
+DNS.1 = localhost
+DNS.2 = go-auth0.architecture.caradhras.io
+IP.1 = 0.0.0.0
+IP.1 = 127.0.0.1
