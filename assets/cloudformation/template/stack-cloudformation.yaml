@@ -44,6 +44,7 @@ Parameters:
   MemorySize:
     Type: Number
     Description: Memory in mb
+    Default: 256    
   S3BucketParam:
     Type: String 
     Default: 908671954593-gitaction-us-east-2-eliezer
