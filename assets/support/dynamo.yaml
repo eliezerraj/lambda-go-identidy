@@ -1,0 +1,130 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Template Create DynamoDB
+
+Parameters:
+  Versao:
+    Type: String
+    Default: 0
+  Env:
+    Type: String
+    Default: dev
+    AllowedValues:
+      - dev
+      - hml
+      - prd
+  DynamoDBTableName:
+    Type: String
+    Default: user_login_2
+  PlatformName:
+    Type: String
+    Default: architecture
+  ApplicationName:
+    Type: String
+  OwnerName:
+    Type: String
+    Default: architecture
+  ComponentName:
+    Type: String
+    Default: architecture
+  PciClassificationName:
+    Type: String
+    Default: non-pci
+    AllowedValues:
+      - pci
+      - pci-connected
+      - non-pci
+  ReadCapacityUnits:
+    Type: Number
+    Default: 1
+  WriteCapacityUnits:
+    Type: Number
+    Default: 1
+  IsTimeToLive:
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: true
+  IsDeletionProtectionEnabled:
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: true
+  IsPointInTimeRecoveryEnabled:
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: true
+  IsBackupEnabled:
+    Type: String
+    AllowedValues: [ true, false ]
+    Default: true
+  DefaultBillingMode:
+    Type: String
+    Default: PAY_PER_REQUEST
+    AllowedValues:
+      - PROVISIONED
+      - PAY_PER_REQUEST
+
+Resources:
+  DynamoDBTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    Properties:
+      TableName: !Ref DynamoDBTableName
+      BillingMode: !Ref DefaultBillingMode
+      PointInTimeRecoverySpecification: 
+         PointInTimeRecoveryEnabled:  !Ref IsPointInTimeRecoveryEnabled
+      DeletionProtectionEnabled: !Ref IsDeletionProtectionEnabled
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: sk
+          AttributeType: S
+        - AttributeName: tenantId
+          AttributeType: S         
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+        - AttributeName: sk
+          KeyType: RANGE
+
+      GlobalSecondaryIndexes:
+        - IndexName: index
+          KeySchema:
+            - AttributeName: tenantId
+              KeyType: HASH
+          Projection:
+            ProjectionType: ALL
+
+      #ProvisionedThroughput:   
+        #ReadCapacityUnits:  !Ref ReadCapacityUnits
+        #WriteCapacityUnits: !Ref WriteCapacityUnits
+
+      TimeToLiveSpecification:
+        AttributeName: TimeToLive
+        Enabled: !Ref IsTimeToLive
+
+      Tags:
+        - Key: env
+          Value: !Ref Env
+        - Key: stack
+          Value: !Sub ${AWS::StackName}
+        - Key: name
+          Value: !Ref DynamoDBTableName
+        - Key: resource
+          Value: dynamo
+        - Key: backup
+          Value: !Ref IsBackupEnabled
+        - Key: platform
+          Value: !Ref PlatformName
+        - Key: application
+          Value: !Ref ApplicationName
+        - Key: component
+          Value: !Ref ComponentName
+        - Key: pci_classification
+          Value: !Ref PciClassificationName
+        - Key: owner
+          Value: !Ref OwnerName
+
+Outputs:
+  DynamoDBTable:
+    Value: !Ref DynamoDBTableName
+  DynamoDBTableARN:
+    Value: !GetAtt DynamoDBTable.Arn
