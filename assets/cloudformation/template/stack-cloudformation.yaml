@@ -41,6 +41,9 @@ Parameters:
     Type: Number
     Description: Timeout in seconds
     Default: 10
+  MemorySize:
+    Type: Number
+    Description: Memory in mb
   S3BucketParam:
     Type: String 
     Default: 908671954593-gitaction-us-east-2-eliezer
@@ -133,6 +136,7 @@ Resources:
       FunctionName: !Ref FunctionLambdaName
       Handler: !Ref HandlerName
       Timeout: !Ref Timeout
+      MemorySize: !Ref MemorySize
       Runtime: !Ref Runtime
       TracingConfig:
         Mode: Active   
