@@ -176,6 +176,8 @@ Resources:
           AWS_LAMBDA_EXEC_WRAPPER: '/opt/otel-handler'
           OTEL_TRACES_SAMPLER: 'always_on'
           OTEL_SERVICE_NAME: !Ref FunctionLambdaName
+          OPENTELEMETRY_COLLECTOR_CONFIG_FILE: '/var/task/collector.yaml'
+          
       Role: 
         Fn::GetAtt: 
           - "LambdaExecutionRole"
