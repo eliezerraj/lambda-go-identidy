@@ -1,7 +1,7 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform:
 - AWS::Serverless-2016-10-31
-Description: Apigateway Public Lambda Integration v3.1 - 05/12/2025
+Description: Apigateway Public Lambda Integration v3.0 - 16/03/2025
 
 Parameters:
   Versao:
@@ -17,7 +17,7 @@ Parameters:
   LambdaFunctionArn:
     Type: String
     Description: Lambda ARN for invocation
-    Default: arn:aws:lambda:us-east-2:908671954593:function:lambda-go-identity
+    Default: arn:aws:lambda:us-east-2:908671954593:function:lambda-go-identidy
   PublicApiLogFormat:
     Type: String
     Default: '{"apiId": "$context.apiId", "requestId": "$context.requestId",
@@ -29,20 +29,20 @@ Parameters:
       "authLatency": "$context.authorizer.latency","x_amzn_trace_id": "$context.xrayTraceId"}'
   ApiPublicName:
     Type: String
-    Default: lambda-go-identity
+    Default: api-lambda-go-identity
   ApiPublicLogGroupName:
     Type: String
     Description: Name of API Gateway Log Group
-    Default: /dock/apigateway/lambda-go-identity
+    Default: /dock/apigateway/api-lambda-go-identity
   ApiGatewayDomainName:
     Type: String
     Default: lambda-go-identity.architecture.caradhras.io
   AuthorizerUri:
     Type: String
-    Default: arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:908671954593:function:go-oauth-apigw-authorizer-lambda/invocations
+    Default: arn:aws:apigateway:us-east-2:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-2:908671954593:function:lambda-go-oauth2/invocations
   AuthorizerARN:
     Type: String
-    Default: arn:aws:lambda:us-east-2:908671954593:function:go-oauth-apigw-authorizer-lambda
+    Default: arn:aws:lambda:us-east-2:908671954593:function:lambda-go-oauth2
   EdgeCertificateArn:
     Type: String
     Default: arn:aws:acm:us-east-1:908671954593:certificate/6dfea057-7ca7-41b9-95a0-b63aaa6640a2 
@@ -109,10 +109,10 @@ Resources:
       DefinitionBody:
         swagger: '2.0'
         info:
-          title: lambda-go-identity
+          title: api-lambda-go-identity
         tags:
-        - name: lambda-go-identity
-          description: lambda-go-identity
+        - name: api-lambda-go-identity
+          description: api-lambda-go-identity
         schemes:
         - https
         paths:
@@ -132,11 +132,11 @@ Resources:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
                 passthroughBehavior: WHEN_NO_TEMPLATES
                 requestParameters:
-                  integration.request.path.proxy: method.request.path.proxy
-                  integration.request.header.X-Request-ID: context.requestId
-                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.jwt-id: context.authorizer.jwt_id         
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId         
+              #security:
+              #- authorizer: []
           /oauth_credential:
             post:
               produces:
@@ -153,11 +153,11 @@ Resources:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
                 passthroughBehavior: when_no_match
                 requestParameters:
-                  integration.request.path.proxy: method.request.path.proxy
-                  integration.request.header.X-Request-ID: context.requestId
-                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.jwt-id: context.authorizer.jwt_id        
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId         
+              #security:
+              #- authorizer: []
           /refreshToken:
             post:
               produces:
@@ -172,13 +172,13 @@ Resources:
                 httpMethod: POST # This is mandatory for lambdas
                 uri: 
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
-                passthroughBehavior: when_no_match
+                passthroughBehavior: WHEN_NO_TEMPLATES
                 requestParameters:
-                  integration.request.path.proxy: method.request.path.proxy
-                  integration.request.header.X-Request-ID: context.requestId
-                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.jwt-id: context.authorizer.jwt_id        
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId         
+              #security:
+              #- authorizer: []
           /tokenValidation:
             post:
               produces:
@@ -193,13 +193,13 @@ Resources:
                 httpMethod: POST # This is mandatory for lambdas
                 uri: 
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
-                passthroughBehavior: when_no_match
+                passthroughBehavior: WHEN_NO_TEMPLATES
                 requestParameters:
-                  integration.request.path.proxy: method.request.path.proxy
-                  integration.request.header.X-Request-ID: context.requestId
-                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.jwt-id: context.authorizer.jwt_id  
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId         
+              #security:
+              #- authorizer: []
           /signIn:
             post:
               produces:
@@ -214,13 +214,13 @@ Resources:
                 httpMethod: POST # This is mandatory for lambdas
                 uri: 
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
-                passthroughBehavior: when_no_match
+                passthroughBehavior: WHEN_NO_TEMPLATES
                 requestParameters:
-                  integration.request.path.proxy: method.request.path.proxy
-                  integration.request.header.X-Request-ID: context.requestId
-                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.jwt-id: context.authorizer.jwt_id  
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId         
+              #security:
+              #- authorizer: []
           /addScope:
             post:
               produces:
@@ -235,13 +235,12 @@ Resources:
                 httpMethod: POST # This is mandatory for lambdas
                 uri: 
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
-                passthroughBehavior: when_no_match
+                passthroughBehavior: WHEN_NO_TEMPLATES
                 requestParameters:
-                  integration.request.path.proxy: method.request.path.proxy
-                  integration.request.header.X-Request-ID: context.requestId
-                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.jwt-id: context.authorizer.jwt_id  
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId         
+              #security:
           /credential/{id}:
             get:
               produces:
@@ -256,13 +255,14 @@ Resources:
                 httpMethod: POST # This is mandatory for lambdas
                 uri: 
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
-                passthroughBehavior: when_no_match
+                passthroughBehavior: WHEN_NO_TEMPLATES
                 requestParameters:
-                  integration.request.path.proxy: method.request.path.proxy
-                  integration.request.header.X-Request-ID: context.requestId
-                  integration.request.header.client-id: context.authorizer.tenant_id
+                  integration.request.path.id: method.request.path.id
+                  integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.jwt-id: context.authorizer.jwt_id                         
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId
+              #security:
+              #- authorizer: []                         
         x-amazon-apigateway-api-key-source: AUTHORIZER
         securityDefinitions:
           authorizer:
@@ -310,7 +310,7 @@ Resources:
             responseTemplates:
               application/json: '{"error": { "id": "$context.requestId", "description":
                 "Too many requests", "code": "429"}}'
-      Description: API Pulic Lambda Integration
+      Description: !Sub "Api ${ApiPublicName} service"
       DisableExecuteApiEndpoint: true
       EndpointConfiguration:
         Type: EDGE
