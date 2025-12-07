@@ -2,9 +2,6 @@ package config
 
 import(
 	"os"
-	"strconv"
-	"net"
-
 	"github.com/rs/zerolog"
 
 	"github.com/lambda-go-identidy/internal/domain/model"
@@ -70,22 +67,5 @@ func GetApplicationInfo() (model.Application) {
 		application.OtelMetrics = false
 	}
 	
-	// Get IP
-	addrs, err := net.InterfaceAddrs()
-	if err != nil {
-		logger.Error().
-				Err(err).Send()
-		os.Exit(3)
-	}
-
-	for _, a := range addrs {
-		if ipnet, ok := a.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
-			if ipnet.IP.To4() != nil {
-				application.IPAddress = ipnet.IP.String()
-			}
-		}
-	}
-	application.OsPid = strconv.Itoa(os.Getpid())
-
 	return application
 }

@@ -5,22 +5,32 @@ receivers:
   otlp:
     protocols:
       grpc:
-        endpoint: "localhost:4317"
+        endpoint: "0.0.0.0:4317"
       http:
-        endpoint: "localhost:4318"
+        endpoint: "0.0.0.0:4318"
 
 exporters:
+  otlp:
+    endpoint: "grafana.architecture.caradhras.io:4317" 
+    tls:
+      insecure: true
+  otlp/tempo-all:
+    endpoint: "http://grafana.architecture.caradhras.io:4318"
+    tls:
+      insecure: true
   logging:
   awsxray:
+    region: us-east-2
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [awsxray]
+      exporters: [otlp, awsxray]
     metrics:
       receivers: [otlp]
       exporters: [logging]
+
   telemetry:
     metrics:
-      address: localhost:8888
+      address: 0.0.0.0:8888
