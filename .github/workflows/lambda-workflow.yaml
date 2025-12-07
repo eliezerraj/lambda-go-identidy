@@ -171,6 +171,11 @@ jobs:
           name: lambda-artifact
           path: build
 
+      - name: Add collector.yaml to the deployment package
+        run: |
+          cp collector.yaml build/collector.yaml
+          zip -u build/main.zip collector.yaml -j
+
       - name: Debug - List Files and Paths
         run: |
           echo "Current Directory:"
@@ -179,7 +184,13 @@ jobs:
           ls -lah
           echo "Recursive file list:"
           ls -R build
-                         
+        working-directory: build
+
+      - name: Debug - List Files and Paths (Verify contents)
+        run: |
+          echo "Files inside the updated main.zip:"
+          unzip -l build/main.zip
+
       - name: Configure AWS credentials - OIDC
         uses: aws-actions/configure-aws-credentials@v2
         with:
