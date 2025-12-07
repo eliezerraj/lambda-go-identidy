@@ -81,11 +81,28 @@ Parameters:
   Layer01Arn:
     Description: Inform the arn layer 01 
     Type: String
-    Default: arn:aws:lambda:us-east-2:184161586896:layer:opentelemetry-collector-amd64-0_19_0:1 #https://github.com/open-telemetry/opentelemetry-lambda/releases
+    Default: arn:aws:lambda:us-east-2:184161586896:layer:opentelemetry-collector-amd64-0_19_0:11 #https://github.com/open-telemetry/opentelemetry-lambda/releases
   Layer02Arn:
     Description: Inform the arn layer 02
     Type: String
     Default: arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:60 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versionsx86-64.html
+
+  VPCSubnetA:
+    Description: Lambda deploy SubNet A
+    Type: String
+    Default: subnet-0ca2d45be9d6ab5bc
+  VPCSubnetB:
+    Description: Lambda deploy SubNet B
+    Type: String
+    Default: subnet-0b2b57acbb1da0623
+  VPCSubnetC:
+    Description: Lambda deploy SubNet C
+    Type: String
+    Default: subnet-05d3e7f4611c12a23
+  VPCSecurityGroup:
+    Description: Lambda deploy Security Group
+    Type: String
+    Default: sg-071e23394778596b2
 
 Conditions:
   IsManagedPolicyParameterOne:    !Not [!Equals [ !Ref ManagedPolicyParameterOne, "" ]]
@@ -129,6 +146,11 @@ Resources:
             - "ssm:GetParameter"
             - "xray:PutTraceSegments"
             - "xray:PutTelemetryRecords"
+            - "ec2:CreateNetworkInterface"
+            - "ec2:DescribeNetworkInterfaces"
+            - "ec2:DeleteNetworkInterface"
+            - "ec2:AssignPrivateIpAddresses"
+            - "ec2:UnassignPrivateIpAddresses"
             Resource: "*"
 
   LambdaFunction: 
@@ -177,7 +199,14 @@ Resources:
           OTEL_TRACES_SAMPLER: 'always_on'
           OTEL_SERVICE_NAME: !Ref FunctionLambdaName
           OPENTELEMETRY_COLLECTOR_CONFIG_URI: '/var/task/collector.yaml'
-          
+      
+      VpcConfig:
+        SecurityGroupIds:
+          - Ref: VPCSecurityGroup	
+        SubnetIds:
+          - Ref: VPCSubnetA
+          - Ref: VPCSubnetB
+          - Ref: VPCSubnetC
       Role: 
         Fn::GetAtt: 
           - "LambdaExecutionRole"
