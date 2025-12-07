@@ -10,7 +10,6 @@ import (
 
 type AppServer struct {
 	Application 		*Application	`json:"application"`
-	Server     			*Server     	`json:"server"`
 	AwsService			*AwsService		`json:"aws_service"`
 	RsaKey				*RsaKey			`json:"rsa_key"`
 	EnvTrace			*go_core_otel_trace.EnvTrace	`json:"env_trace"`
@@ -30,14 +29,6 @@ type Application struct {
 	OtelLogs			bool   	`json:"otel_logs"`
 	StdOutLogGroup 		bool   	`json:"stdout_log_group"`
 	LogGroup			string 	`json:"log_group,omitempty"`
-}
-
-type Server struct {
-	Port 			int `json:"port"`
-	ReadTimeout		int `json:"readTimeout"`
-	WriteTimeout	int `json:"writeTimeout"`
-	IdleTimeout		int `json:"idleTimeout"`
-	CtxTimeout		int `json:"ctxTimeout"`
 }
 
 type AwsService struct {
@@ -74,12 +65,12 @@ type CredentialScope struct {
 }
 
 type RsaKey struct{
-	AuthenticationModel	string	`json:"authentication_model"`
-	HsaKey			string	`json:"hsa_key"`
-	RsaPrivatePem	string	`json:"rsa_private_pem"`
-	RsaPublicPem 	string	`json:"rsa_public_pem"`
-	CrlPem 			string	`json:"crl_pem"`
-	CaCert			string	`json:"ca_cert"` 
+	AuthenticationModel	string		`json:"authentication_model"`
+	HsaKey			string			`json:"hsa_key"`
+	RsaPrivatePem	string			`json:"rsa_private_pem"`
+	RsaPublicPem 	string			`json:"rsa_public_pem"`
+	CrlPem 			string			`json:"crl_pem"`
+	CaCert			string			`json:"ca_cert"` 
 	RsaPrivate 		*rsa.PrivateKey `json:"rsa_private"`
 	RsaPublic 		*rsa.PublicKey	`json:"rsa_public"`
 }

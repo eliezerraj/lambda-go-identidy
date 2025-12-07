@@ -384,9 +384,9 @@ Resources:
       WebACLArn:
         Ref: WafaclArn
 
-Outputs:
-  ApiPublicGateway:
-    Value:
-      Ref: ApiPublicGateway
-    Export:
-      Name: ApiPublicGateway
+#Outputs:
+#  ApiPublicGateway:
+#    Value:
+#      Ref: ApiPublicGateway
+#    Export:
+#      Name: ApiPublicGateway

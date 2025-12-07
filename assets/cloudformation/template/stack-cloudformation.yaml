@@ -40,7 +40,7 @@ Parameters:
   Timeout:
     Type: Number
     Description: Timeout in seconds
-    Default: 10
+    Default: 30
   MemorySize:
     Type: Number
     Description: Memory in mb
