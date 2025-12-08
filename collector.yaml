@@ -18,19 +18,13 @@ exporters:
     endpoint: "http://grafana.architecture.caradhras.io:4318"
     tls:
       insecure: true
-  logging:
-  awsxray:
-    region: us-east-2
+  debug:
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [otlp, awsxray]
+      exporters: [otlp]
     metrics:
       receivers: [otlp]
-      exporters: [logging]
-
-  telemetry:
-    metrics:
-      address: 0.0.0.0:8888
+      exporters: [debug]

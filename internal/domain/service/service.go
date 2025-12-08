@@ -421,7 +421,7 @@ func (w *WorkerService) RefreshToken(ctx context.Context,
 
 	// Trace
 	ctx, span := tracerProvider.SpanCtx(ctx, "service.RefreshToken")
-	span.End()
+	defer span.End()
 
 	// Validate token and extract claims
 	jwtData := &model.JwtData{}

@@ -28,7 +28,8 @@ import(
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
-"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-lambda-go/otellambda"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-lambda-go/otellambda"
+	"go.opentelemetry.io/contrib/propagators/aws/xray"
 	// ---------------------------  use it for a mock local ---------------------------
 	//"encoding/json"  
 	//"github.com/aws/aws-lambda-go/events" 
@@ -132,7 +133,16 @@ func main (){
 																appInfoTrace,
 																&appLogger)
 
-		otel.SetTextMapPropagator(propagation.TraceContext{})
+		
+		otel.SetTextMapPropagator(
+    		propagation.NewCompositeTextMapPropagator(
+        	propagation.TraceContext{}, // W3C
+        	xray.Propagator{},          // AWS
+    	),
+)
+		/*otel.SetTextMapPropagator(propagation.TraceContext{}, // w3c
+								  xray.Propagator{}) // aws */
+
 		otel.SetTracerProvider(sdkTracerProvider)
 		sdkTracerProvider.Tracer(appServer.Application.Name)
 	}
