@@ -163,9 +163,9 @@ Resources:
       Runtime: !Ref Runtime
       TracingConfig:
         Mode: Active   
-      Layers:
-        - !Ref Layer01Arn
-        - !Ref Layer02Arn    
+      #Layers:
+      #  - !Ref Layer01Arn
+      #  - !Ref Layer02Arn    
       Environment:
         Variables:
           VERSION: !Ref ApiVersion
