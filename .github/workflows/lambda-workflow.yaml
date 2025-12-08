@@ -179,7 +179,6 @@ jobs:
           ls -lah
           echo "Recursive file list:"
           ls -R build
-        working-directory: build
 
       - name: Configure AWS credentials - OIDC
         uses: aws-actions/configure-aws-credentials@v2
