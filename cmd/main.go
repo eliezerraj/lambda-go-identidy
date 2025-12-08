@@ -133,15 +133,13 @@ func main (){
 																appInfoTrace,
 																&appLogger)
 
-		
 		otel.SetTextMapPropagator(
     		propagation.NewCompositeTextMapPropagator(
-        	propagation.TraceContext{}, // W3C
-        	xray.Propagator{},          // AWS
-    	),
-)
-		/*otel.SetTextMapPropagator(propagation.TraceContext{}, // w3c
-								  xray.Propagator{}) // aws */
+				propagation.TraceContext{}, // W3C
+				xray.Propagator{},          // AWS
+				propagation.Baggage{},
+    		),
+		)
 
 		otel.SetTracerProvider(sdkTracerProvider)
 		sdkTracerProvider.Tracer(appServer.Application.Name)
