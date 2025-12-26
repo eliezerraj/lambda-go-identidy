@@ -74,7 +74,7 @@ func init(){
 	switch application.LogLevel {
 	case "debug":
 		zerolog.SetGlobalLevel(zerolog.DebugLevel)
-	case "warn": 
+	case "warning": 
 		zerolog.SetGlobalLevel(zerolog.WarnLevel)
 	case "error": 
 		zerolog.SetGlobalLevel(zerolog.ErrorLevel)

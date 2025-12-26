@@ -184,7 +184,7 @@ Resources:
           RSA_PUB_FILE_KEY: server-public.key
           CRL_FILE_KEY: crl-ca.crl
 
-          LOG_LEVEL: 'info'
+          LOG_LEVEL: 'warning'
           OTEL_EXPORTER_OTLP_ENDPOINT: 'localhost:4317'
 
           OTEL_METRICS: 'true'
