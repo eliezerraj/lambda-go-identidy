@@ -14,10 +14,10 @@ type TraceHook struct{}
 func (h TraceHook) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	ctx := e.GetCtx() 
 
-	traceRequestId := fmt.Sprintf("%v",ctx.Value("trace-request-id"))
+	traceRequestId := fmt.Sprintf("%v",ctx.Value("request-id"))
 	
 	if traceRequestId != "<nil>"{
-		e = e.Str("trace-request-id", traceRequestId)
+		e = e.Str("request-id", traceRequestId)
 	}
 
 	spanCtx := trace.SpanContextFromContext(ctx)

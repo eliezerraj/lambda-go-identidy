@@ -84,7 +84,7 @@ func (r *LambdaRouters) UnhandledMethod() (*events.APIGatewayProxyResponse, erro
 // About handle error
 func (r *LambdaRouters) ErrorHandler(ctx context.Context, err error) *LambdaError {
 
-	trace_id := fmt.Sprintf("%v",ctx.Value("trace-request-id"))
+	trace_id := fmt.Sprintf("%v",ctx.Value("request-id"))
 
 	var httpStatusCode int = http.StatusInternalServerError
 

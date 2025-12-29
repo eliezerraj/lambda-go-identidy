@@ -7,7 +7,7 @@ require (
 	github.com/aws/aws-sdk-go-v2 v1.40.1
 	github.com/aws/aws-sdk-go-v2/config v1.32.3
 	github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue v1.20.27
-	github.com/eliezerraj/go-core v1.0.101
+	github.com/eliezerraj/go-core v1.0.102
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/rs/zerolog v1.34.0
