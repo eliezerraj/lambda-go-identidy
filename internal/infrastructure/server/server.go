@@ -40,7 +40,7 @@ func (s *Server) LambdaHandlerRequest(ctx context.Context,
 			 Str("func","LambdaHandlerRequest").Send()
 
 	// get the resquest-id and put in inside the 
-	ctx = context.WithValue(ctx, "trace-request-id", request.RequestContext.RequestID)
+	ctx = context.WithValue(ctx, "request-id", request.RequestContext.RequestID)
 
 	// Check the http method and path
 	switch request.HTTPMethod {
