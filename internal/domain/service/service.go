@@ -340,6 +340,7 @@ func (w *WorkerService) OAUTHCredential(ctx context.Context,
 								ISS: 		w.appServer.Application.Name,
 								Version: 	w.appServer.Application.Version,
 								JwtId: 		uuidString,
+								Kid:		w.appServer.RsaKey.Kid,
 								TokenUse: 	"access",
 								Tier: 		un_credential[0].Tier,
 								ApiAccessKey: un_credential[0].ApiAccessKey,
@@ -398,9 +399,9 @@ func (w *WorkerService) WellKnown(ctx context.Context) (*model.Jwks, error){
 
 	// prepate jkws
 	jKey := model.JwtKeyInfo{
-		Type: "RSA",
+		Type: w.appServer.RsaKey.AuthenticationModel,
 		Algorithm: "RS256",
-		JwtId: "1",
+		Kid: w.appServer.RsaKey.Kid,
 		NBase64: nBase64,
 	}
 	

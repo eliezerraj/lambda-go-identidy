@@ -19,6 +19,9 @@ func GetAwsServiceEnv() model.AwsService {
 	if os.Getenv("DYNAMO_TABLE_NAME") !=  "" {
 		awsService.DynamoTableName = os.Getenv("DYNAMO_TABLE_NAME")
 	}
+	if os.Getenv("KID") !=  "" {
+		awsService.Kid = os.Getenv("KID")
+	}
 
 	if os.Getenv("RSA_BUCKET_NAME_KEY") !=  "" {
 		awsService.BucketNameRSAKey = os.Getenv("RSA_BUCKET_NAME_KEY")

@@ -19,7 +19,7 @@ type Application struct {
 	Name				string 	`json:"name"`
 	Version				string 	`json:"version"`
 	Account				string 	`json:"account,omitempty"`
-	AuthenticationModel	string `json:"authentication_model,RSA,omitempty"`	
+	AuthenticationModel	string  `json:"authentication_model,RSA,omitempty"`	
 	OsPid				string 	`json:"os_pid"`
 	IPAddress			string 	`json:"ip_address"`
 	Env					string 	`json:"enviroment,omitempty"`
@@ -34,6 +34,7 @@ type Application struct {
 type AwsService struct {
 	AwsRegion			string `json:"aws_region"`
 	DynamoTableName		string `json:"dynamo_table_name"`
+	Kid					string 	`json:"kid"`	
 	SecretName			string `json:"secret_name"`
 	BucketNameRSAKey	string `json:"bucket_rsa_key,omitempty"`
 	FilePathRSA			string `json:"path_rsa_key,omitempty"`
@@ -65,14 +66,15 @@ type CredentialScope struct {
 }
 
 type RsaKey struct{
-	AuthenticationModel	string		`json:"authentication_model"`
-	HsaKey			string			`json:"hsa_key"`
-	RsaPrivatePem	string			`json:"rsa_private_pem"`
-	RsaPublicPem 	string			`json:"rsa_public_pem"`
-	CrlPem 			string			`json:"crl_pem"`
-	CaCert			string			`json:"ca_cert"` 
-	RsaPrivate 		*rsa.PrivateKey `json:"rsa_private"`
-	RsaPublic 		*rsa.PublicKey	`json:"rsa_public"`
+	AuthenticationModel	string			`json:"authentication_model"`
+	HsaKey				string			`json:"hsa_key"`
+	RsaPrivatePem		string			`json:"rsa_private_pem"`
+	RsaPublicPem 		string			`json:"rsa_public_pem"`
+	Kid					string 			`json:"kid"`
+	CrlPem 				string			`json:"crl_pem"`
+	CaCert				string			`json:"ca_cert"` 
+	RsaPrivate 			*rsa.PrivateKey `json:"rsa_private"`
+	RsaPublic 			*rsa.PublicKey	`json:"rsa_public"`
 }
 
 type Authentication struct {
@@ -85,10 +87,11 @@ type JwtData struct {
 	TokenUse		string 	`json:"token_use"`
 	ISS				string 	`json:"iss"`
 	Version			string 	`json:"version"`
-	JwtId			string 	`json:"jwt_id"`
 	Username		string 	`json:"username"`
-	Tier			string 	`json:"tier"`
-	ApiAccessKey	string 	`json:"api_access_key"`
+	JwtId			string 	`json:"jwt_id"`
+	Kid				string 	`json:"kid"`
+	Tier			string 	`json:"tier,omitempty"`				// use in plan usage rate-limit
+	ApiAccessKey	string 	`json:"api_access_key,omitempty"` 	// use in plan usage rate-limit
 	Scope	  		[]string `json:"scope"`
 	jwt.RegisteredClaims
 }
@@ -100,6 +103,6 @@ type Jwks struct{
 type JwtKeyInfo struct{
 	Type		string 	`json:"kty"`
 	Algorithm	string 	`json:"alg"`
-	JwtId		string 	`json:"kid"`
+	Kid			string 	`json:"kid"`
 	NBase64		string 	`json:"n"`
 }

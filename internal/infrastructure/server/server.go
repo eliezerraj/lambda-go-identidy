@@ -49,7 +49,7 @@ func (s *Server) LambdaHandlerRequest(ctx context.Context,
 				response, _ = s.lambdaRouters.GetCredential(ctx, request)
 			}else if request.Resource == "/info"{
 				response, _ = s.lambdaRouters.GetInfo(ctx)
-			}else if request.Resource == "/wellKnown/1" {
+			}else if request.Resource == "/.wellKnown/jwks.json" {
 				response, _ =  s.lambdaRouters.WellKnown(ctx, request) 
 			}else {
 				response, _ = s.lambdaRouters.UnhandledMethod()
