@@ -263,7 +263,7 @@ Resources:
                   integration.request.header.X-AppClient-ID: context.authorizer.principalId
               #security:
               #- authorizer: []       
-          /.wellKnown/jwks.json:
+          /.well-known/jwks.json:
             get:
               produces:
               - application/json
@@ -279,11 +279,9 @@ Resources:
                   Fn::Sub: arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${LambdaFunctionArn}/invocations
                 passthroughBehavior: WHEN_NO_TEMPLATES
                 requestParameters:
-                  integration.request.path.id: method.request.path.id
                   integration.request.header.requestId: context.requestId
                   integration.request.header.X-Forwarded-For: context.identity.sourceIp
-                  integration.request.header.X-AppClient-ID: context.authorizer.principalId                  
-        x-amazon-apigateway-api-key-source: AUTHORIZER
+                  integration.request.header.X-AppClient-ID: context.authorizer.principalId     
         securityDefinitions:
           authorizer:
             type: apiKey
