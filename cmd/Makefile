@@ -8,6 +8,7 @@ export AUTHENTICATION_MODEL=RSA
 export REGION=us-east-2
 export SECRET_NAME=SECRET-12345
 export DYNAMO_TABLE_NAME=user_login_2
+export KID=auth-key:server-public.key
 
 export RSA_BUCKET_NAME_KEY=docktech-eliezer-908671954593-truststore-mtls
 export RSA_FILE_PATH=/

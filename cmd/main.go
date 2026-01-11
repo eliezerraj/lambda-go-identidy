@@ -28,7 +28,7 @@ import(
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws"
-	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-lambda-go/otellambda"
+	"go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-lambda-go/otellambda" //enable this line for run in AWS
 	"go.opentelemetry.io/contrib/propagators/aws/xray"
 	// ---------------------------  use it for a mock local ---------------------------
 	//"encoding/json"  
@@ -122,11 +122,11 @@ func main (){
 		// Otel over aws services
 		otelaws.AppendMiddlewares(&awsCfg.APIOptions)
 
-		appInfoTrace.Name = appServer.Application.Name
-		appInfoTrace.Version = appServer.Application.Version
+		appInfoTrace.Name = 	appServer.Application.Name
+		appInfoTrace.Version = 	appServer.Application.Version
 		appInfoTrace.ServiceType = "lambda-workload"
-		appInfoTrace.Env = appServer.Application.Env
-		appInfoTrace.Account = appServer.Application.Account
+		appInfoTrace.Env = 		appServer.Application.Env
+		appInfoTrace.Account = 	appServer.Application.Account
 
 		sdkTracerProvider = appTracerProvider.NewTracerProvider(ctx, 
 																*appServer.EnvTrace, 
@@ -184,10 +184,10 @@ func main (){
 	}
 
 	// Load the private key
-	publicKey, err := bucketS3.GetObject( ctx, 
-											appServer.AwsService.BucketNameRSAKey,
-											appServer.AwsService.FilePathRSA,
-											appServer.AwsService.FileNameRSAPubKey )
+	publicKey, err := bucketS3.GetObject(ctx, 
+										 appServer.AwsService.BucketNameRSAKey,
+										 appServer.AwsService.FilePathRSA,
+										 appServer.AwsService.FileNameRSAPubKey)
 	if err != nil{
 		logger.Fatal().
 			   Err(err).Send()
@@ -203,6 +203,9 @@ func main (){
 	}
 
 	// Load everything in rsa key model
+	rsaKey.AuthenticationModel = appServer.Application.AuthenticationModel
+	rsaKey.Kid = appServer.AwsService.Kid
+
 	rsaKey.HsaKey 		= "SECRET-12345" // for simplicity 
 	rsaKey.RsaPublic 	= rsaPublic
 	rsaKey.RsaPrivate 	= rsaPrivate
@@ -275,7 +278,7 @@ func main (){
 
 	/*mockEvent := events.APIGatewayProxyRequest{
 		HTTPMethod: "GET",
-		Resource:    "/wellKnown/1",
+		Resource:    "/.wellKnown/jwks.json",
 		Headers: map[string]string{
 			"Content-Type": "application/json",
 		},

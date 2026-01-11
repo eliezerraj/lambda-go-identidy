@@ -305,7 +305,7 @@ func (r *LambdaRouters) OAUTHCredential(ctx context.Context, req events.APIGatew
 func (r *LambdaRouters) WellKnown(ctx context.Context, 
 								  req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
 	r.logger.Info().
-			Str("func","OAUTHCredential").Send()
+			Str("func","WellKnown").Send()
 
 	//trace
 	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.lambda.WellKnown")
