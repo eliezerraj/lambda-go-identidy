@@ -1,7 +1,7 @@
 package lambda
 
 import(
-	"fmt"
+	"time"
 	"context"
 	"net/http"
 	"strings"
@@ -10,51 +10,68 @@ import(
 	"github.com/rs/zerolog"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/codes"
 
 	"github.com/lambda-go-identidy/shared/erro"
 	"github.com/lambda-go-identidy/internal/domain/model"
 	"github.com/lambda-go-identidy/internal/domain/service"
 
-	go_core_otel_trace "github.com/eliezerraj/go-core/v2/otel/trace"	
+	go_core_otel_trace "github.com/eliezerraj/go-core/v2/otel/trace"
+	go_core_midleware "github.com/eliezerraj/go-core/v2/middleware" // used to get request ID from context
 )
 
-var tracerProvider go_core_otel_trace.TracerProvider
-
 type LambdaRouters struct {
-	appServer	*model.AppServer
-	workerService *service.WorkerService
-	logger *zerolog.Logger
+	appServer		*model.AppServer
+	workerService 	*service.WorkerService
+	logger 			*zerolog.Logger
+	tracerProvider 	*go_core_otel_trace.TracerProvider
 }
 
 type LambdaError struct {
 	StatusCode	int    `json:"statusCode"`
-	TraceId		string `json:"request-id,omitempty"`
 	Error		string `json:"message"`
+	RequestID	string `json:"request-id,omitempty"`
 }
 
-func NewLambdaRouters(appServer *model.AppServer,
-					  workerService *service.WorkerService, 
-					  appLogger 	*zerolog.Logger) *LambdaRouters {
+// Above create routers
+func NewLambdaRouters(appServer 		*model.AppServer,
+					  workerService 	*service.WorkerService, 
+					  appLogger 		*zerolog.Logger,
+					  tracerProvider 	*go_core_otel_trace.TracerProvider) *LambdaRouters {
 
 	logger := appLogger.With().
-						Str("package", "adapter.lambda").
-						Logger()
+		Str("package", "adapter.").
+		Logger()
+
 	logger.Info().
-			Str("func","NewLambdaRouters").Send()
+		Str("func","NewLambdaRouters").Send()
 
 	return &LambdaRouters{
 		workerService: workerService,
 		appServer: appServer,
 		logger: &logger,
+		tracerProvider: tracerProvider,
 	}
+}
+
+// -------------------------------------------
+// Helper to extract context with timeout and setup span
+func (r *LambdaRouters) withContext(ctx context.Context, spanName string) (context.Context, context.CancelFunc, trace.Span) {
+	ctx, cancel := context.WithTimeout(ctx, time.Duration(10) * time.Second)
+
+	r.logger.Info().
+			Ctx(ctx).
+			Str("func", spanName).Send()
+	
+	ctx, span := r.tracerProvider.SpanCtx(ctx, "adapter."+spanName, trace.SpanKindInternal)
+	return ctx, cancel, span
 }
 
 //------------------------------------- Support methods --------------------------------------------
 // About response
-func (r *LambdaRouters) LambdaResponse(statusCode int, 
-									   body interface{}) (*events.APIGatewayProxyResponse, error){
-	r.logger.Info().
-			 Str("func","ApiHandlerResponse").Send()
+func (r *LambdaRouters) LambdaResponse (statusCode int, body interface{}) (*events.APIGatewayProxyResponse, error){
 
 	stringBody, err := json.Marshal(&body)
 	if err != nil {
@@ -82,11 +99,13 @@ func (r *LambdaRouters) UnhandledMethod() (*events.APIGatewayProxyResponse, erro
 }
 
 // About handle error
-func (r *LambdaRouters) ErrorHandler(ctx context.Context, err error) *LambdaError {
-
-	trace_id := fmt.Sprintf("%v",ctx.Value("request-id"))
+func (r *LambdaRouters) ErrorHandler(requestID string, err error) *LambdaError {
 
 	var httpStatusCode int = http.StatusInternalServerError
+
+	if strings.Contains(err.Error(), "token expired") {
+    	httpStatusCode = http.StatusUnauthorized
+	}
 
 	if strings.Contains(err.Error(), "context deadline exceeded") {
     	httpStatusCode = http.StatusGatewayTimeout
@@ -100,33 +119,40 @@ func (r *LambdaRouters) ErrorHandler(ctx context.Context, err error) *LambdaErro
     	httpStatusCode = http.StatusNotFound
 	}
 
+	if strings.Contains(err.Error(), "informed is invalid") {
+    	httpStatusCode = http.StatusBadRequest
+	}
+
 	if strings.Contains(err.Error(), "duplicate key") || 
 	   strings.Contains(err.Error(), "unique constraint") {
    		httpStatusCode = http.StatusBadRequest
 	}
 
+	// Create LambdaError struct
 	lambdaError := LambdaError{ StatusCode: httpStatusCode, 
-							    TraceId: trace_id, 
+							    RequestID: requestID, 
 								Error: err.Error(), }
 
 	return &lambdaError
 }
 
+// Helper to get trace ID from context using middleware function
+func (r *LambdaRouters) getRequestID(ctx context.Context) string {
+	return go_core_midleware.GetRequestID(ctx)
+}
+
+// ----------------------------------------------------------------
 // About get into
 func (r *LambdaRouters) GetInfo(ctx context.Context) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			 Str("func","GetInfo").Send()
-	
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.api.GetInfo")
+	ctx, cancel, span := r.withContext(ctx, "GetInfo")
+	defer cancel()
 	defer span.End()
 
-	handlerResponse, err := r.LambdaResponse( http.StatusOK,  
-											  r.appServer)
-	
+	handlerResponse, err := r.LambdaResponse(http.StatusOK, r.appServer)
 	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err),)
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
+		return r.LambdaResponse(http.StatusInternalServerError, r.ErrorHandler(r.getRequestID(ctx), err))
 	}
 
 	return handlerResponse, nil
@@ -134,141 +160,91 @@ func (r *LambdaRouters) GetInfo(ctx context.Context) (*events.APIGatewayProxyRes
 
 //-------------------------------------  Identidy  --------------------------------------------
 // About get credential
-func (r *LambdaRouters) GetCredential(ctx context.Context, 
-									 req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			 Str("func","GetCredential").Send()
-
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.lambda.GetCredential")
+func (r *LambdaRouters) GetCredential(ctx context.Context, req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
+		 
+	ctx, cancel, span := r.withContext(ctx, "GetCredential")
+	defer cancel()
 	defer span.End()
 
 	// prepare
 	id := req.PathParameters["id"]
 	if len(id) == 0 {
-		return r.LambdaResponse(http.StatusBadRequest, 
-								r.ErrorHandler( ctx, erro.ErrQueryEmpty))
+		span.RecordError(erro.ErrQueryEmpty) 
+        span.SetStatus(codes.Error, erro.ErrQueryEmpty.Error())
+		return r.LambdaResponse(http.StatusBadRequest, r.ErrorHandler(r.getRequestID(ctx), erro.ErrQueryEmpty))
 	}
 
 	credential := model.Credential{User: id}
 	
 	//call service
-	response, err := r.workerService.GetCredential(ctx,
-												   credential)
+	response, err := r.workerService.GetCredential(ctx, credential)
 	if err != nil {
-		switch err {
-		case erro.ErrNotFound:
-			return r.LambdaResponse(http.StatusNotFound, 
-								    r.ErrorHandler(ctx, err ) )
-		default:
-			return r.LambdaResponse(http.StatusInternalServerError, 
-								    r.ErrorHandler(ctx, err) )
-		}
+		lambdaError := r.ErrorHandler(r.getRequestID(ctx), err)
+		return r.LambdaResponse(lambdaError.StatusCode, lambdaError)
 	}
 	
-	handlerResponse, err := r.LambdaResponse(http.StatusOK, 
-											 response)
-	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err) )
-	}
-
-	return handlerResponse, nil
+	return r.LambdaResponse(http.StatusOK, response)
 }
 
 // About AddScope
 func (r *LambdaRouters) AddScope(ctx context.Context, 
 								 req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			Str("func","AddScope").Send()
 	
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.lambda.AddScope")
+	ctx, cancel, span := r.withContext(ctx, "AddScope")
+	defer cancel()
 	defer span.End()
 
 	// prepare
 	credential_scope := model.CredentialScope{}
     if err := json.Unmarshal([]byte(req.Body), &credential_scope); err != nil {
-		return r.LambdaResponse(http.StatusBadRequest, 
-								r.ErrorHandler( ctx, erro.ErrQueryEmpty))
+		return r.LambdaResponse(http.StatusBadRequest, r.ErrorHandler(r.getRequestID(ctx), erro.ErrQueryEmpty))
     }
 
 	//call service
 	response, err := r.workerService.AddScope(ctx, credential_scope)
 	if err != nil {
-		switch err {
-		case erro.ErrNotFound:
-			return r.LambdaResponse(http.StatusNotFound, 
-								    r.ErrorHandler(ctx, err ) )
-		default:
-			return r.LambdaResponse(http.StatusInternalServerError, 
-								    r.ErrorHandler(ctx, err) )
-		}
+		lambdaError := r.ErrorHandler(r.getRequestID(ctx), err)
+		return r.LambdaResponse(lambdaError.StatusCode, lambdaError)
 	}
 	
-	handlerResponse, err := r.LambdaResponse(http.StatusOK, response)
-	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err) )
-	}
-
-	return handlerResponse, nil
+	return r.LambdaResponse(http.StatusOK, response)
 }
 
 // About SignIn
 func (r *LambdaRouters) SignIn(ctx context.Context, 
 								req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			 Str("func","SignIn").Send()
 	
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.lambda.SignIn")
+	ctx, cancel, span := r.withContext(ctx, "SignIn")
+	defer cancel()
 	defer span.End()
 
 	// prepare
 	credential := model.Credential{}
     if err := json.Unmarshal([]byte(req.Body), &credential); err != nil {
-		return r.LambdaResponse(http.StatusBadRequest, 
-								r.ErrorHandler( ctx, erro.ErrQueryEmpty))
+		return r.LambdaResponse(http.StatusBadRequest, r.ErrorHandler(r.getRequestID(ctx), erro.ErrQueryEmpty))
     }
 
 	//call service
 	response, err := r.workerService.SignIn(ctx, credential)
 	if err != nil {
-		switch err {
-		case erro.ErrNotFound:
-			return r.LambdaResponse(http.StatusNotFound, 
-								    r.ErrorHandler(ctx, err ) )
-		default:
-			return r.LambdaResponse(http.StatusInternalServerError, 
-								    r.ErrorHandler(ctx, err) )
-		}
+		lambdaError := r.ErrorHandler(r.getRequestID(ctx), err)
+		return r.LambdaResponse(lambdaError.StatusCode, lambdaError)
 	}
 
-	handlerResponse, err := r.LambdaResponse(http.StatusOK, response)
-	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err) )
-	}
-
-	return handlerResponse, nil
+	return r.LambdaResponse(http.StatusOK, response)
 }
 
 //------------------------------------- Jwt and signatures --------------------------------------------
 // About sign-in
-func (r *LambdaRouters) OAUTHCredential(ctx context.Context, req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			Str("func","OAUTHCredential").Send()
-	
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.lambda.OAUTHCredential")
+func (r *LambdaRouters) OAUTHCredential(ctx context.Context, req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {	
+	ctx, cancel, span := r.withContext(ctx, "OAUTHCredential")
+	defer cancel()
 	defer span.End()
 
 	// prepare
 	credential := model.Credential{}
     if err := json.Unmarshal([]byte(req.Body), &credential); err != nil {
-		return r.LambdaResponse(http.StatusBadRequest, 
-								r.ErrorHandler( ctx, erro.ErrQueryEmpty))
+		return r.LambdaResponse(http.StatusBadRequest, r.ErrorHandler(r.getRequestID(ctx), erro.ErrQueryEmpty))
     }
 
 	if r.appServer.Application.AuthenticationModel == "RSA" {
@@ -282,71 +258,42 @@ func (r *LambdaRouters) OAUTHCredential(ctx context.Context, req events.APIGatew
 	//call service
 	response, err := r.workerService.OAUTHCredential(ctx, credential)
 	if err != nil {
-		switch err {
-		case erro.ErrNotFound:
-			return r.LambdaResponse(http.StatusNotFound, 
-								    r.ErrorHandler(ctx, err ) )
-		default:
-			return r.LambdaResponse(http.StatusInternalServerError, 
-								    r.ErrorHandler(ctx, err) )
-		}
+		lambdaError := r.ErrorHandler(r.getRequestID(ctx), err)
+		return r.LambdaResponse(lambdaError.StatusCode, lambdaError)
 	}
 	
-	handlerResponse, err := r.LambdaResponse(http.StatusOK, response)
-	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err) )
-	}
-
-	return handlerResponse, nil
+	return r.LambdaResponse(http.StatusOK, response)
 }
 
 // About WellKnown
 func (r *LambdaRouters) WellKnown(ctx context.Context, 
 								  req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			Str("func","WellKnown").Send()
-
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.lambda.WellKnown")
+	
+	ctx, cancel, span := r.withContext(ctx, "WellKnown")
+	defer cancel()
 	defer span.End()
 
 	//call service
 	response, err := r.workerService.WellKnown(ctx)
 	if err != nil {
-		switch err {
-		case erro.ErrNotFound:
-			return r.LambdaResponse(http.StatusNotFound, 
-								    r.ErrorHandler(ctx, err ) )
-		default:
-			return r.LambdaResponse(http.StatusInternalServerError, 
-								    r.ErrorHandler(ctx, err) )
-		}
+		lambdaError := r.ErrorHandler(r.getRequestID(ctx), err)
+		return r.LambdaResponse(lambdaError.StatusCode, lambdaError)
 	}
 	
-	handlerResponse, err :=  r.LambdaResponse(http.StatusOK, response)
-	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err) )
-	}
-
-	return handlerResponse, nil
+	return r.LambdaResponse(http.StatusOK, response)
 }
 
 // About TokenValidation
 func (r *LambdaRouters) TokenValidation(ctx context.Context, req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			 Str("func","TokenValidation").Send()
 	
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.lambda.TokenValidation")
+	ctx, cancel, span := r.withContext(ctx, "TokenValidation")
+	defer cancel()
 	defer span.End()
 
 	// prepare
 	credential := model.Credential{}
     if err := json.Unmarshal([]byte(req.Body), &credential); err != nil {
-		return r.LambdaResponse(http.StatusBadRequest, 
-								r.ErrorHandler( ctx, erro.ErrQueryEmpty))
+		return r.LambdaResponse(http.StatusBadRequest, r.ErrorHandler(r.getRequestID(ctx), erro.ErrQueryEmpty))
     }
 
 	// Check which type of authentication method 
@@ -361,43 +308,24 @@ func (r *LambdaRouters) TokenValidation(ctx context.Context, req events.APIGatew
 	//call service
 	response, err := r.workerService.TokenValidation(ctx, credential)
 	if err != nil {
-		switch err {
-		case erro.ErrTokenExpired:
-			return r.LambdaResponse(http.StatusUnauthorized, 
-								    r.ErrorHandler(ctx, err ) )
-		case erro.ErrStatusUnauthorized:
-			return r.LambdaResponse(http.StatusUnauthorized, 
-								    r.ErrorHandler(ctx, err ) )
-		default:
-			return r.LambdaResponse(http.StatusInternalServerError, 
-								    r.ErrorHandler(ctx, err) )
-		}
+		lambdaError := r.ErrorHandler(r.getRequestID(ctx), err)
+		return r.LambdaResponse(lambdaError.StatusCode, lambdaError)
 	}
 	
-	handlerResponse, err := r.LambdaResponse(http.StatusOK, response)
-	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err) )
-	}
-
-	return handlerResponse, nil
+	return r.LambdaResponse(http.StatusOK, response)
 }
 
 // About refresh
 func (r *LambdaRouters) RefreshToken(ctx context.Context, 
 									req events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
-	r.logger.Info().
-			Str("func","RefreshToken").Send()
-	
-	//trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "adapter.api.RefreshToken")
+	ctx, cancel, span := r.withContext(ctx, "TokenValidation")
+	defer cancel()
 	defer span.End()
 
 	// prepare
 	credential := model.Credential{}
     if err := json.Unmarshal([]byte(req.Body), &credential); err != nil {
-		return r.LambdaResponse(http.StatusBadRequest, 
-								r.ErrorHandler( ctx, erro.ErrQueryEmpty))
+		return r.LambdaResponse(http.StatusBadRequest, r.ErrorHandler( r.getRequestID(ctx), erro.ErrQueryEmpty))
     }
 
 	// Check which type of authentication method 
@@ -412,24 +340,9 @@ func (r *LambdaRouters) RefreshToken(ctx context.Context,
 	//call service
 	response, err := r.workerService.RefreshToken(ctx, credential)
 	if err != nil {
-		switch err {
-		case erro.ErrTokenExpired:
-			return r.LambdaResponse(http.StatusUnauthorized, 
-								    r.ErrorHandler(ctx, err ) )
-		case erro.ErrStatusUnauthorized:
-			return r.LambdaResponse(http.StatusUnauthorized, 
-								    r.ErrorHandler(ctx, err ) )
-		default:
-			return r.LambdaResponse(http.StatusInternalServerError, 
-								    r.ErrorHandler(ctx, err) )
-		}
+		lambdaError := r.ErrorHandler(r.getRequestID(ctx), err)
+		return r.LambdaResponse(lambdaError.StatusCode, lambdaError)
 	}
 	
-	handlerResponse, err := r.LambdaResponse(http.StatusOK, response)
-	if err != nil {
-		return r.LambdaResponse(http.StatusInternalServerError, 
-								r.ErrorHandler(ctx, err) )
-	}
-
-	return handlerResponse, nil
+	return r.LambdaResponse(http.StatusOK, response)
 }

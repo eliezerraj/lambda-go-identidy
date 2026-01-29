@@ -8,9 +8,59 @@
    RSA (private key)
    HSA (symetric key)
 
-## Integration
+## Diagram Sequence
 
-   This is workload requires a dynamo table (for the user data and scopes ) and a S3 bucket (private/public key)
+![alt text](image.png)
+
+![alt text](image-1.png)
+
+![alt text](image-2.png)
+        
+        title lambda-identidy
+
+        participant user
+        participant lambda-identidy
+        
+        entryspacing 0.7
+
+        alt GetCredential
+        user->lambda-identidy:GET /credential/{id}
+        lambda-identidy->lambda-identidy:queryInput (DYNAMO)\nid = "USER-XX"\nsk = "USER-XX"
+        lambda-identidy->lambda-identidy:queryInput (DYNAMO)\nid = "USER-xx"\nsk = "SCOPE-001"
+        user<--lambda-identidy:http 200 (JSON)\nqueryData
+        end
+        alt WellKnown
+        user->lambda-identidy:GET /.well-known/jwks.json
+        lambda-identidy->lambda-identidy:encode B64\nRsaPublicPem
+        user<--lambda-identidy:http 200 (JSON)\nqueryData
+
+        end
+
+        alt OAUTHCredential
+        user->lambda-identidy:POST /oauth_credential
+        lambda-identidy->lambda-identidy:queryInput (DYNAMO)\nid = "USER-XX"\nsk = "USER-XX"
+        lambda-identidy->lambda-identidy:queryInput (DYNAMO)\nid = "USER-xx"\nsk = "SCOPE-001"
+        lambda-identidy->lambda-identidy:create JWT\nexpirationTime = 5 days
+        user<--lambda-identidy:http 200 (JSON)\nqueryData
+        end
+        alt RefreshToken
+        user->lambda-identidy:POST /refreshToken
+        lambda-identidy->lambda-identidy:create JWT\nexpirationTime = 5 days
+        user<--lambda-identidy:http 200 (JSON)\nqueryData
+        end
+        alt SignIn
+        user->lambda-identidy:POST /signIn
+        lambda-identidy->lambda-identidy:putItem(DYNAMO)\nid = "USER-XX"\nsk = "USER-XX"
+        user<--lambda-identidy:http 200 (JSON)\npostData
+        end
+        alt AddScope
+        user->lambda-identidy:POST /addScope
+        lambda-identidy->lambda-identidy:putItem (DYNAMO)\nid = "USER-XX"\nsk = "SCOPE-001"
+        user<--lambda-identidy:http 200 (JSON)\npostData
+        end
+        alt RefreshToken
+        user->lambda-identidy:POST /refreshToken
+        lambda-identidy->lambda-identidy:tokenSignedV
 
 ## Enviroments
 
@@ -20,27 +70,28 @@
 
 ## Endpoints
 
-    curl --location 'https://mydomain.com/identidy/info'
-    curl --location 'https://mydomain.com/identidy/credential/admin-003'
+curl --location 'https://mydomain.com/identidy/info'
 
-    curl --location 'https://mydomain.com/identidy/oauth_credential' \
+curl --location 'https://mydomain.com/identidy/credential/admin-003'
+
+curl --location 'https://mydomain.com/identidy/oauth_credential' \
     --header 'Content-Type: application/json' \
     --data '{
         "user":"admin-003",
         "password":"admin-003"
     }'
 
-    curl --location 'https://mydomain.com/identidy/refreshToken' \
+curl --location 'https://mydomain.com/identidy/refreshToken' \
     --data '{
         "token": "eyJhbGc....dbg"
     }'
 
-    curl --location 'https://mydomain.com/identidy/tokenValidation' \
+curl --location 'https://mydomain.com/identidy/tokenValidation' \
     --data '{
         "token": "eyJhbG...Psg"
     }'
 
-    curl --location 'https://mydomain.com/identidy/signIn' \
+curl --location 'https://mydomain.com/identidy/signIn' \
     --header 'Content-Type: application/json' \
     --data '{
         "user":"admin-003",
@@ -49,13 +100,23 @@
         "api_access_key" : "API_ACCESS_KEY_ADMIN_003"
     }'
 
-    curl --location 'https://mydomain.com/identidy/addScope' \
+ curl --location 'https://mydomain.com/identidy/addScope' \
     --data '{
         "user": "admin-003",
         "scope": ["test.read","test.write", "admin"]
     }'
 
 ## Manually compile the function and update it (without run a ci/cd)
+
+## Monitoring
+
+Logs: JSON structured logging via zerolog
+
+Metrics: Available through endpoint /metrics via otel/sdk/metric
+
+Trace: The x-request-id is extract from header and is ingest into context, in order the x-request-id do not exist a new one is generated (uuid)
+
+Errors: Structured error handling with custom error types
 
 Compile
 
