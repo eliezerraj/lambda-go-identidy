@@ -14,16 +14,18 @@ import (
 	"github.com/lambda-go-identidy/internal/domain/model"
 	"github.com/lambda-go-identidy/shared/erro"
 
+	"go.opentelemetry.io/otel/trace"
+	"go.opentelemetry.io/otel/codes"
+
 	go_core_aws_dynamoDB "github.com/eliezerraj/go-core/v2/aws/dynamoDB"
 	go_core_otel_trace "github.com/eliezerraj/go-core/v2/otel/trace"
 )
 
-var tracerProvider go_core_otel_trace.TracerProvider
-
 type WorkerService struct {
-	appServer *model.AppServer
-	dynamoDB  *go_core_aws_dynamoDB.DatabaseDynamoDB
-	logger 	  *zerolog.Logger
+	appServer 				*model.AppServer
+	dynamoDB  				*go_core_aws_dynamoDB.DatabaseDynamoDB
+	logger 	  				*zerolog.Logger
+	tracerProvider 			*go_core_otel_trace.TracerProvider
 
 	createdToken func(	interface{}, 
 						time.Time, 
@@ -42,7 +44,7 @@ func createdTokenRSA(rsaPrivate interface{},
 					jwtData model.JwtData,
 					logger *zerolog.Logger) (*model.Authentication, error){
 	logger.Info().
-			Str("func","createdTokenRSA").Send()
+		Str("func","createdTokenRSA").Send()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, jwtData)
 	tokenString, err := token.SignedString(rsaPrivate)
@@ -132,15 +134,16 @@ func tokenValidationHS256(bearerToken string,
 }
 // ------------------------- Support ------------------------------/
 // About new worker service
-func NewWorkerService(appServer *model.AppServer,
-					  dynamoDB  *go_core_aws_dynamoDB.DatabaseDynamoDB,	
-					  appLogger *zerolog.Logger) *WorkerService{
+func NewWorkerService(appServer 		*model.AppServer,
+					  dynamoDB  		*go_core_aws_dynamoDB.DatabaseDynamoDB,	
+					  appLogger 		*zerolog.Logger,
+					  tracerProvider 	*go_core_otel_trace.TracerProvider) *WorkerService{
 
 	logger := appLogger.With().
 						Str("package", "domain.service").
 						Logger()
 	logger.Info().
-			Str("func","NewWorkerService").Send()
+		Str("func","NewWorkerService").Send()
 
 	var createdToken func(interface{}, time.Time, model.JwtData, *zerolog.Logger) (*model.Authentication, error) 
 	var tokenSignedValidation func(string, interface{}, *zerolog.Logger) (*model.JwtData, error)
@@ -157,6 +160,7 @@ func NewWorkerService(appServer *model.AppServer,
 		appServer: appServer,
 		dynamoDB: dynamoDB,
 		logger: &logger,
+		tracerProvider: tracerProvider,
 		createdToken: createdToken,
 		tokenSignedValidation: tokenSignedValidation,
 	}
@@ -167,10 +171,11 @@ func NewWorkerService(appServer *model.AppServer,
 func (w *WorkerService) SignIn(ctx context.Context, 
 								credential model.Credential) (*model.Credential, error){
 	w.logger.Info().
-			 Str("func","SignIn").Send()
+		Ctx(ctx).
+		Str("func","SignIn").Send()
 
 	// Trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "service.SignIn")
+	ctx, span := w.tracerProvider.SpanCtx(ctx, "service.SignIn", trace.SpanKindServer)
 	defer span.End()
 
 	// Prepare ID and SK
@@ -183,6 +188,8 @@ func (w *WorkerService) SignIn(ctx context.Context,
 							  &w.appServer.AwsService.DynamoTableName,  
 							  credential)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -193,10 +200,11 @@ func (w *WorkerService) SignIn(ctx context.Context,
 func (w *WorkerService) GetCredential(ctx context.Context, 
 									  credential model.Credential) (*model.Credential, error){
 	w.logger.Info().
-			 Str("func","GetCredential").Send()
+		Ctx(ctx).
+		Str("func","GetCredential").Send()
 
 	// Trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "service.GetCredential")
+	ctx, span := w.tracerProvider.SpanCtx(ctx, "service.GetCredential", trace.SpanKindServer)
 	defer span.End()
 
 	// Prepare ID and SK
@@ -209,6 +217,8 @@ func (w *WorkerService) GetCredential(ctx context.Context,
 												id, 
 												sk)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	if len(res_credential) == 0 {
@@ -218,6 +228,8 @@ func (w *WorkerService) GetCredential(ctx context.Context,
 	un_credential := []model.Credential{}
 	err = attributevalue.UnmarshalListOfMaps(res_credential, &un_credential)
     if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	
@@ -229,12 +241,17 @@ func (w *WorkerService) GetCredential(ctx context.Context,
 														id, 
 														sk)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+
 	credential_scope := []model.CredentialScope{}
 	if len(res_credential_scope) > 0 {
 		err = attributevalue.UnmarshalListOfMaps(res_credential_scope, &credential_scope)
 		if err != nil {
+			span.RecordError(err) 
+        	span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 		un_credential[0].CredentialScope = &credential_scope[0]
@@ -247,10 +264,11 @@ func (w *WorkerService) GetCredential(ctx context.Context,
 func (w *WorkerService) AddScope(ctx context.Context, 
 								credential_scope model.CredentialScope) (*model.CredentialScope, error){
 	w.logger.Info().
-			Str("func","AddScope").Send()
+		Ctx(ctx).
+		Str("func","AddScope").Send()
 
 	// Trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "service.AddScope")
+	ctx, span := w.tracerProvider.SpanCtx(ctx, "service.AddScope", trace.SpanKindServer)
 	defer span.End()
 
 	// Prepare ID and SK
@@ -274,10 +292,11 @@ func (w *WorkerService) AddScope(ctx context.Context,
 func (w *WorkerService) OAUTHCredential(ctx context.Context, 
 										credential model.Credential) (*model.Authentication, error){
 	w.logger.Info().
-			Str("func","OAUTHCredential").Send()
+		Ctx(ctx).
+		Str("func","OAUTHCredential").Send()
 
 	// Trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "service.OAUTHCredential")
+	ctx, span := w.tracerProvider.SpanCtx(ctx, "service.OAUTHCredential", trace.SpanKindServer)
 	defer span.End()
 
 	// Prepare ID and SK
@@ -290,6 +309,8 @@ func (w *WorkerService) OAUTHCredential(ctx context.Context,
 												id, 
 												sk)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	if len(res_credential) == 0 {
@@ -298,11 +319,15 @@ func (w *WorkerService) OAUTHCredential(ctx context.Context,
 	un_credential := []model.Credential{}
 	err = attributevalue.UnmarshalListOfMaps(res_credential, &un_credential)
     if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
 	// Check Password (NAIVE)
 	if credential.Password != un_credential[0].Password {
+		span.RecordError(erro.ErrCredentials) 
+        span.SetStatus(codes.Error, erro.ErrCredentials.Error())
 		return nil, erro.ErrCredentials
 	}
 
@@ -316,6 +341,8 @@ func (w *WorkerService) OAUTHCredential(ctx context.Context,
 														id, 
 														sk)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	if len(res_credential_scope) == 0 {
@@ -325,6 +352,8 @@ func (w *WorkerService) OAUTHCredential(ctx context.Context,
 	credential_scope := []model.CredentialScope{}
 	err = attributevalue.UnmarshalListOfMaps(res_credential_scope, &credential_scope)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 
@@ -350,26 +379,29 @@ func (w *WorkerService) OAUTHCredential(ctx context.Context,
 	}
 
 	// Create token Function via parameter (see router decision)
-	_, span01 := tracerProvider.SpanCtx(ctx, "service.createdToken")
+	_, span01 := w.tracerProvider.SpanCtx(ctx, "service.createdToken", trace.SpanKindServer)
 	authentication, err := w.createdToken(credential.JwtKey, 
 										  expirationTime, 
 										  *jwtData,
 										  w.logger)
-	span01.End()
-
 	if err != nil {
+		span01.RecordError(err) 
+        span01.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
+	span01.End()
+
 	return authentication, nil
 }
 
 // About check a token expitation date
 func (w *WorkerService) TokenValidation(ctx context.Context, credential model.Credential) (bool, error){
 	w.logger.Info().
-			 Str("func","TokenValidation").Send()
+		Ctx(ctx).
+		Str("func","TokenValidation").Send()
 
 	// Trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "service.TokenValidation")
+	ctx, span := w.tracerProvider.SpanCtx(ctx, "service.TokenValidation", trace.SpanKindServer)
 	defer span.End()
 	
 	// Validate token - Function via parameter (see router decision)
@@ -377,6 +409,8 @@ func (w *WorkerService) TokenValidation(ctx context.Context, credential model.Cr
 									  credential.JwtKeySign, 
 									  w.logger)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return false, err
 	}
 
@@ -386,10 +420,11 @@ func (w *WorkerService) TokenValidation(ctx context.Context, credential model.Cr
 // About wellKnown
 func (w *WorkerService) WellKnown(ctx context.Context) (*model.Jwks, error){
 	w.logger.Info().
-			Str("func","WellKnown").Send()
+		Ctx(ctx).
+		Str("func","WellKnown").Send()
 
 	// Trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "service.WellKnown")
+	ctx, span := w.tracerProvider.SpanCtx(ctx, "service.WellKnown", trace.SpanKindServer)
 	defer span.End()
 
 	// Convert B64 pub key
@@ -418,10 +453,11 @@ func (w *WorkerService) WellKnown(ctx context.Context) (*model.Jwks, error){
 func (w *WorkerService) RefreshToken(ctx context.Context, 
 									credential model.Credential) (*model.Authentication, error){
 	w.logger.Info().
-			Str("func","RefreshToken").Send()
+		Ctx(ctx).
+		Str("func","RefreshToken").Send()
 
 	// Trace
-	ctx, span := tracerProvider.SpanCtx(ctx, "service.RefreshToken")
+	ctx, span := w.tracerProvider.SpanCtx(ctx, "service.RefreshToken", trace.SpanKindServer)
 	defer span.End()
 
 	// Validate token and extract claims
@@ -432,6 +468,8 @@ func (w *WorkerService) RefreshToken(ctx context.Context,
 											credential.JwtKeySign,
 										    w.logger)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	// Set a new tokens claims
@@ -445,6 +483,8 @@ func (w *WorkerService) RefreshToken(ctx context.Context,
 										  *jwtData,
 										  w.logger)
 	if err != nil {
+		span.RecordError(err) 
+        span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 

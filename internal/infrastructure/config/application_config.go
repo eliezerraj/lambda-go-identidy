@@ -17,8 +17,7 @@ var	logger = zerolog.New(os.Stdout).
 // Load the Application configuration
 func GetApplicationInfo() (model.Application) {
 	logger.Info().
-			Str("func","GetApplicationInfo").Send()
-
+		Str("func","GetApplicationInfo").Send()
 
 	var application model.Application
 

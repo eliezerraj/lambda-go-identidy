@@ -2,9 +2,11 @@ package server
 
 import(
 	"context"
-
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 	"github.com/aws/aws-lambda-go/events"
+
+	go_core_middleware "github.com/eliezerraj/go-core/v2/middleware" // used to get request ID from context
 
 	lambdaRouter "github.com/lambda-go-identidy/internal/infrastructure/adapter/lambda"	
 	"github.com/lambda-go-identidy/internal/infrastructure/adapter/lambda"	
@@ -33,14 +35,24 @@ func NewLambdaServer(lambdaRouters *lambdaRouter.LambdaRouters,
     }
 }
 
+// getOrGenerateRequestID retrieves request ID from header or generates new one
+func getOrGenerateRequestID(req *events.APIGatewayProxyRequest) string {
+	if vals := req.RequestContext.RequestID; len(vals) > 0 {
+		return vals
+	}
+	return uuid.New().String()
+}
+
 // About handle the request
 func (s *Server) LambdaHandlerRequest(ctx context.Context,
 									  request events.APIGatewayProxyRequest) (*events.APIGatewayProxyResponse, error) {
 	s.logger.Info().
-			 Str("func","LambdaHandlerRequest").Send()
+		Ctx(ctx).
+		Str("func","LambdaHandlerRequest").Send()
 
-	// get the resquest-id and put in inside the 
-	ctx = context.WithValue(ctx, "request-id", request.RequestContext.RequestID)
+	// get the resquest-id and put in inside the context
+	requestID := getOrGenerateRequestID(&request)
+	ctx = context.WithValue(ctx, go_core_middleware.RequestIDKey, requestID)
 
 	// Check the http method and path
 	switch request.HTTPMethod {
