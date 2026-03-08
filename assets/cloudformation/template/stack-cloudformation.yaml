@@ -68,7 +68,11 @@ Parameters:
     Description: Inform policy ARN (opcional)
     Type: String 
     Default: "arn:aws:iam::aws:policy/CloudWatchLambdaInsightsExecutionRolePolicy"
-    
+  ManagedPolicyParameterFive:
+    Description: Inform policy ARN (opcional)
+    Type: String 
+    Default: "arn:aws:iam::908671954593:policy/AllowFisLamba-policy"
+
   CrlBucketNameKey:
     Description: Crl Bucket Name
     Type: String 
@@ -86,6 +90,11 @@ Parameters:
     Description: Inform the arn layer 02
     Type: String
     Default: arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:60 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versionsx86-64.html
+  Layer03Arn:
+    Description: Inform the arn layer 02
+    Type: String
+    Default: arn:aws:lambda:us-east-2:471112953925:layer:aws-fis-extension-arm64:266 # https://docs.aws.amazon.com/fis/latest/userguide/actions-lambda-extension-arns.html#extension-arns-access-guide
+
 
   VPCSubnetA:
     Description: Lambda deploy SubNet A
@@ -129,6 +138,7 @@ Resources:
         - !If [ IsManagedPolicyParameterTwo, !Ref ManagedPolicyParameterTwo, !Ref 'AWS::NoValue' ]
         - !If [ IsManagedPolicyParameterThree, !Ref ManagedPolicyParameterThree, !Ref 'AWS::NoValue' ]
         - !If [ IsManagedPolicyParameterFour, !Ref ManagedPolicyParameterFour, !Ref 'AWS::NoValue' ]
+        - !If [ IsManagedPolicyParameterFive, !Ref IsManagedPolicyParameterFive, !Ref 'AWS::NoValue' ]        
       Policies:
       - PolicyName: lambda_policy
         PolicyDocument:
@@ -165,7 +175,8 @@ Resources:
         Mode: Active   
       Layers:
         - !Ref Layer01Arn
-        - !Ref Layer02Arn    
+        - !Ref Layer02Arn
+        - !Ref Layer03Arn           
       Environment:
         Variables:
           VERSION: !Ref ApiVersion
@@ -200,6 +211,10 @@ Resources:
           OTEL_TRACES_SAMPLER: 'always_on'
           OTEL_SERVICE_NAME: !Ref FunctionLambdaName
           OPENTELEMETRY_COLLECTOR_CONFIG_URI: '/var/task/collector.yaml'
+
+          AWS_FIS_CONFIGURATION_LOCATION: 'arn:aws:s3:::908671954593-eliezer-fis-us-east-2/fis-config/'
+          AWS_LAMBDA_EXEC_WRAPPER: '/opt/aws-fis/bootstrap'
+          AWS_FIS_EXTENSION_METRICS: 'all'
       
       VpcConfig:
         SecurityGroupIds:
@@ -215,7 +230,7 @@ Resources:
       Code: 
         S3Bucket: !Ref S3BucketParam
         S3Key: !Ref S3KeyParam
-      Tags:
+      Tags:     
       - Key: env
         Value: !Ref Env
       - Key: stack
