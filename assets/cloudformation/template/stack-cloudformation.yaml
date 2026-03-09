@@ -90,11 +90,6 @@ Parameters:
     Description: Inform the arn layer 02
     Type: String
     Default: arn:aws:lambda:us-east-2:580247275435:layer:LambdaInsightsExtension:60 # https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/Lambda-Insights-extension-versionsx86-64.html
-  Layer03Arn:
-    Description: Inform the arn layer 02
-    Type: String
-    Default: arn:aws:lambda:us-east-2:471112953925:layer:aws-fis-extension-arm64:266 # https://docs.aws.amazon.com/fis/latest/userguide/actions-lambda-extension-arns.html#extension-arns-access-guide
-
 
   VPCSubnetA:
     Description: Lambda deploy SubNet A
