@@ -138,7 +138,6 @@ Resources:
         - !If [ IsManagedPolicyParameterTwo, !Ref ManagedPolicyParameterTwo, !Ref 'AWS::NoValue' ]
         - !If [ IsManagedPolicyParameterThree, !Ref ManagedPolicyParameterThree, !Ref 'AWS::NoValue' ]
         - !If [ IsManagedPolicyParameterFour, !Ref ManagedPolicyParameterFour, !Ref 'AWS::NoValue' ]
-        - !If [ IsManagedPolicyParameterFive, !Ref IsManagedPolicyParameterFive, !Ref 'AWS::NoValue' ]        
       Policies:
       - PolicyName: lambda_policy
         PolicyDocument:
