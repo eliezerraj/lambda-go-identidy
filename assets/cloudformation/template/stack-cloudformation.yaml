@@ -169,8 +169,7 @@ Resources:
         Mode: Active   
       Layers:
         - !Ref Layer01Arn
-        - !Ref Layer02Arn
-        - !Ref Layer03Arn           
+        - !Ref Layer02Arn     
       Environment:
         Variables:
           VERSION: !Ref ApiVersion
@@ -206,10 +205,6 @@ Resources:
           OTEL_SERVICE_NAME: !Ref FunctionLambdaName
           OPENTELEMETRY_COLLECTOR_CONFIG_URI: '/var/task/collector.yaml'
 
-          AWS_FIS_CONFIGURATION_LOCATION: 'arn:aws:s3:::908671954593-eliezer-fis-us-east-2/fis-config/'
-          AWS_LAMBDA_EXEC_WRAPPER: '/opt/aws-fis/bootstrap'
-          AWS_FIS_EXTENSION_METRICS: 'all'
-      
       VpcConfig:
         SecurityGroupIds:
           - Ref: VPCSecurityGroup	
